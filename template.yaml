@@ -5,12 +5,33 @@ Description: >
 
   Sample SAM Template for sam-test
 
+Parameters:
+  Environment:
+    Type: String
+    Description: "Deployment environment (prod, qa, dev)"
+    AllowedValues:
+      - prod
+      - qa
+      - dev
+
 Globals:
   Function:
     Timeout: 3
     MemorySize: 128
     LoggingConfig:
       LogFormat: JSON
+
+Mappings:
+  EnvConfig:
+    dev:
+      EnvVar1: "dev-value1"
+      EnvVar2: "dev-value2"
+    qa:
+      EnvVar1: "qa-value1"
+      EnvVar2: "qa-value2"
+    prod:
+      EnvVar1: "prod-value1"
+      EnvVar2: "prod-value2"
 
 Resources:
   HelloWorldFunction:
@@ -21,6 +42,11 @@ Resources:
       Runtime: python3.9
       Architectures:
         - x86_64
+      Environment:
+        Variables:
+          ENV: !Ref Environment
+          EnvVar1: !FindInMap [EnvConfig, !Ref Environment, EnvVar1]
+          EnvVar2: !FindInMap [EnvConfig, !Ref Environment, EnvVar2]
 
   HelloWorldFunctionPermission:
     Type: AWS::Lambda::Permission
@@ -33,12 +59,12 @@ Resources:
   HelloWorldApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: HelloWorldApi
-      StageName: Prod
+      Name: !Sub "HelloWorldApi-${Environment}"
+      StageName: !Ref Environment
       DefinitionBody:
         swagger: "2.0"
         info:
-          title: "HelloWorldApi"
+          title: !Sub "HelloWorldApi-${Environment}"
           version: "1.0"
         paths:
           /hello:
@@ -61,8 +87,7 @@ Resources:
   ApplicationResourceGroup:
     Type: AWS::ResourceGroups::Group
     Properties:
-      Name:
-        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      Name: !Sub "ApplicationInsights-SAM-${AWS::StackName}-${Environment}"
       ResourceQuery:
         Type: CLOUDFORMATION_STACK_1_0
   
@@ -75,11 +100,16 @@ Resources:
 
 Outputs:
   HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${HelloWorldApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+    Description: "API Gateway endpoint URL for ${Environment} stage for Hello World function"
+    Value: !Sub "https://${HelloWorldApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/hello/"
   HelloWorldFunction:
     Description: "Hello World Lambda Function ARN"
     Value: !GetAtt HelloWorldFunction.Arn
   HelloWorldFunctionIamRole:
     Description: Implicit IAM Role created for Hello World function
     Value: !GetAtt HelloWorldFunctionRole.Arn
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, 'prod']
+  IsQa: !Equals [!Ref Environment, 'qa']
+  IsDev: !Equals [!Ref Environment, 'dev']
