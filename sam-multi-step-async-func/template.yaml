@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM Template for API Gateway, Lambda functions, and Step Functions
+
+Resources:
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+
+  LambdaFunctionA:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/lambda_a/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+
+  LambdaFunctionB:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/lambda_b/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+
+  StepFunctionStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionSubstitutions:
+        LambdaFunctionAArn: !GetAtt LambdaFunctionA.Arn
+        LambdaFunctionBArn: !GetAtt LambdaFunctionB.Arn
+      DefinitionUri: statemachine/statemachine.asl.json
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LambdaFunctionA
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LambdaFunctionB
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /process
+            Method: post
+            RestApiId: !Ref ApiGateway
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  StateMachineArn:
+    Description: "Step Functions State Machine ARN"
+    Value: !Ref StepFunctionStateMachine
